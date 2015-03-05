@@ -79,8 +79,16 @@ def startIssueWithNewBrach(jira):
   return setStartStatusWithNewBrach(jira, branch_name)
 
 def resolveIssue(jira):
-  'd'
-
+  latest_commit_id = Popen(['git', 'log --pretty=format:%H -1'], stdout=PIPE).communicate()[0]
+  commit_msg = Popen(['git', 'rev-list --pretty --max-count=1 ' + latest_commit_id], stdout=PIPE).communicate()[0]
+  
+  match = re.findall('#[A-Za-z0-9]+-[0-9]+', commit_msg)
+  
+  if len(match) == 1:
+    ticket_number = re.sub('#', '', match[0])
+    setResolveStatusOfTicket(jira, ticket_number)
+  else:
+    return
 
 if __name__ == "__main__":
   main()
