@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+
+import re
+import sys
+from os import path
+from jira.exceptions import JIRAError
+from jira.client import JIRA
+from subprocess import Popen, PIPE
+
+hook_name = path.basename(sys.argv[0])
+jira_user_name = None
+jira_user_pwd = None
+jira_web = None
+jira_branches = None
+
+def main():
+  #global jira_user_name, jira_user_pwd, jira_web
+  p = Popen(['git', 'config', '-l'], stdout=PIPE)
+  
+  git_config_list = p.communicate()[0].split("\n")
+
+  for cfg in git_config_list:
+    if re.match('jira.username=[a-zA-Z0-9]+', cfg):
+      jira_user_name = cfg.split('=')[1]
+    if re.match('jira.password=[a-zA-Z0-9]+', cfg):
+      jira_user_pwd = cfg.split('=')[1]
+    if re.match('jira.weburl=[a-zA-Z0-9]+', cfg):
+      jira_web = cfg.split('=')[1]
+    if re.match('jira.branches=[a-zA-Z]+', cfg):
+      jira_branches = cfg
+
+  if jira_user_name is None or jira_user_pwd is None or jira_web is None:
+    print 'Require jira info on .gitconfig'
+
+  if jira_branches is None:
+    jira_branches = 'master'
+
+  #create JIRA client 
+  jira = createJIRAClient(jira_web, jira_user_name, jira_user_pwd)
+
+  if hook_name == 'post-checkouit':
+    startIssueWithNewBrach(jira)
+  if hook_name == 'commit-msg':
+    resolveIssue(jira)
+
+
+def getIssueInfo(jira, ticket_number):
+  return jira.issue(ticket_number, fields='summary, comment')
+
+def setStartStatusOfTicket(jira, ticket_number):
+  return jira.transition_issue(ticket_number, 4)
+
+def resolveTicket(jira, ticket_number, msg):
+  jira.add_worklog(ticket_number, comment=msg)
+  jira.transition_issue(ticket_number, 5)
+
+# id - 4 : start, 5 : Resolve
+def setResolveStatusOfTicket(jira, ticket_number):
+  return jira.transition_issue(ticket_number, 5)
+
+def addWorkLogOfTicket(jira, ticket_number, comment):
+  return jira.add_worklog(ticket_number, comment=comment)
+
+def createJIRAClient(jira_web, username, password):
+  return JIRA(options={'server': jira_web}, basic_auth=(username, password))
+
+# get current local branch name
+def getBranchName():
+  return Popen(['git', 'branch'], stdout=PIPE).communicate()[0]
+
+# if new branch name include ticket number then set start status of the ticket.
+def startIssueWithNewBrach(jira):
+  branch_name = getBranchName()
+  try:
+    issue = getIssueInfo(jira, branch_name)
+  except JIRAError:
+    return 
+  
+  return setStartStatusWithNewBrach(jira, branch_name)
+
+def resolveIssue(jira):
+  'd'
+
+
+if __name__ == "__main__":
+  main()
