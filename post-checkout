@@ -12,9 +12,13 @@ jira_user_name = None
 jira_user_pwd = None
 jira_web = None
 jira_branches = None
+git_flow_feature_prefix = False
+git_flow_release_prefix = False
+git_flow_hotfix_prefix = False
 
 def main():
   #global jira_user_name, jira_user_pwd, jira_web
+  global git_flow_release_prefix, git_flow_feature_prefix, git_flow_hotfix_prefix
   p = Popen(['git', 'config', '-l'], stdout=PIPE)
   
   git_config_list = p.communicate()[0].split("\n")
@@ -28,6 +32,12 @@ def main():
       jira_web = cfg.split('=')[1]
     if re.match('jira.branches=[a-zA-Z]+', cfg):
       jira_branches = cfg
+    if re.match('gitflow.prefix.feature=[a-zA-Z0-9]+', cfg):
+      git_flow_feature_prefix = cfg.split('=')[1]
+    if re.match('gitflow.prefix.release=[a-zA-Z0-9]+', cfg):
+      git_flow_release_prefix = cfg.split('=')[1]
+    if re.match('gitflow.prefix.hotfix=[a-zA-Z0-9]+', cfg):
+      git_flow_hotfix_prefix = cfg.split('=')[1]
 
   if jira_user_name is None or jira_user_pwd is None or jira_web is None:
     print 'Require jira info on .gitconfig'
@@ -38,55 +48,66 @@ def main():
   #create JIRA client 
   jira = createJIRAClient(jira_web, jira_user_name, jira_user_pwd)
 
-  if hook_name == 'post-checkouit':
+  if hook_name == 'post-checkout':
     startIssueWithNewBrach(jira)
-  if hook_name == 'commit-msg':
+  if hook_name == 'post-commit':
     resolveIssue(jira)
-
 
 def getIssueInfo(jira, ticket_number):
   return jira.issue(ticket_number, fields='summary, comment')
 
+def addCommentOfTicekt(jira, ticket_number, commit_msg):
+  return jira.add_comment(ticket_number, body=commit_msg)
+
 def setStartStatusOfTicket(jira, ticket_number):
   return jira.transition_issue(ticket_number, 4)
-
-def resolveTicket(jira, ticket_number, msg):
-  jira.add_worklog(ticket_number, comment=msg)
-  jira.transition_issue(ticket_number, 5)
 
 # id - 4 : start, 5 : Resolve
 def setResolveStatusOfTicket(jira, ticket_number):
   return jira.transition_issue(ticket_number, 5)
-
-def addWorkLogOfTicket(jira, ticket_number, comment):
-  return jira.add_worklog(ticket_number, comment=comment)
 
 def createJIRAClient(jira_web, username, password):
   return JIRA(options={'server': jira_web}, basic_auth=(username, password))
 
 # get current local branch name
 def getBranchName():
-  return Popen(['git', 'branch'], stdout=PIPE).communicate()[0]
+  return Popen(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stdout=PIPE).communicate()[0].split('\n')[0]
+
+
+def splitGitFlowPrefix(branch_name):
+  if git_flow_hotfix_prefix or git_flow_release_prefix or git_flow_feature_prefix:
+    if re.match(git_flow_feature_prefix.upper(), branch_name.upper()):
+      return branch_name.split(git_flow_feature_prefix.upper())[1]
+    if re.match(git_flow_release_prefix.upper(), branch_name.upper()):
+      return branch_name.split(git_flow_release_prefix.upper())[1]
+    if re.match(git_flow_hotfix_prefix.upper(), branch_name.upper()):
+      return branch_name.split(git_flow_hotfix_prefix.upper())[1]
+  return branch_name
 
 # if new branch name include ticket number then set start status of the ticket.
 def startIssueWithNewBrach(jira):
-  branch_name = getBranchName()
+  branch_name = getBranchName().upper()
+  
   try:
+    branch_name = splitGitFlowPrefix(branch_name)
     issue = getIssueInfo(jira, branch_name)
   except JIRAError:
     return 
   
-  return setStartStatusWithNewBrach(jira, branch_name)
+  return setStartStatusOfTicket(jira, branch_name)
 
 def resolveIssue(jira):
-  latest_commit_id = Popen(['git', 'log --pretty=format:%H -1'], stdout=PIPE).communicate()[0]
-  commit_msg = Popen(['git', 'rev-list --pretty --max-count=1 ' + latest_commit_id], stdout=PIPE).communicate()[0]
+  latest_commit_id = Popen(['git', 'log', '--format=%H', '-n', '1'], stdout=PIPE).communicate()[0].split('\n')[0]
+  
+  get_msg_cmds = ['git', 'log', '--format=%B', '-n', '1', latest_commit_id]
+  commit_msg = Popen(get_msg_cmds, stdout=PIPE).communicate()[0]
   
   match = re.findall('#[A-Za-z0-9]+-[0-9]+', commit_msg)
   
   if len(match) == 1:
-    ticket_number = re.sub('#', '', match[0])
+    ticket_number = re.sub('#', '', match[0]).upper()
     setResolveStatusOfTicket(jira, ticket_number)
+    addCommentOfTicekt(jira, ticket_number, commit_msg)
   else:
     return
 
