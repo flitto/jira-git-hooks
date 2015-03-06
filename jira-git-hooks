@@ -60,7 +60,10 @@ def addCommentOfTicekt(jira, ticket_number, commit_msg):
   return jira.add_comment(ticket_number, body=commit_msg)
 
 def setStartStatusOfTicket(jira, ticket_number):
-  return jira.transition_issue(ticket_number, 4)
+  try:
+    return jira.transition_issue(ticket_number, 4)
+  except JIRAError:
+    return
 
 # id - 4 : start, 5 : Resolve
 def setResolveStatusOfTicket(jira, ticket_number):
