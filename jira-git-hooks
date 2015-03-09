@@ -42,6 +42,11 @@ def main():
   #create JIRA client 
   jira = createJIRAClient(jira_web, jira_user_name, jira_user_pwd)
 
+  try:
+    jira.session()
+  except JIRAError:
+    print 'Wrong JIRA Auth Info!'
+
   if hook_name == 'post-checkout':
     startIssueWithNewBrach(jira)
   if hook_name == 'post-commit':
