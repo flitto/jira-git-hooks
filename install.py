@@ -9,11 +9,11 @@ import os
 def main():
   username = raw_input('Enter Your Jira username(ex: jays.woo) :')
   password = raw_input('Enter Your Jira password :')
-  #weburl = raw_input('Enter Your Jira web url (ex: http://name.atlassian.net) :')
+  weburl = raw_input('Enter Your Jira web url (ex: http://name.atlassian.net) :')
 
   Popen(['git', 'config', '--global', 'jira.username', username])
   Popen(['git', 'config', '--global', 'jira.password', password])
-  #Popen(['git', 'config', '--global', 'jira.weburl', weburl])
+  Popen(['git', 'config', '--global', 'jira.weburl', weburl])
  
   use_post_checkout_hook  = (raw_input('use post-checkout hook? (Y | N)').upper() == 'Y') if True else False
   use_post_commit_hook  = (raw_input('use post-commit hook? (Y | N)').upper() == 'Y') if True else False
