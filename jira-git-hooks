@@ -11,7 +11,6 @@ hook_name = path.basename(sys.argv[0])
 jira_user_name = None
 jira_user_pwd = None
 jira_web = None
-jira_branches = None
 git_flow_feature_prefix = False
 git_flow_release_prefix = False
 git_flow_hotfix_prefix = False
@@ -30,8 +29,6 @@ def main():
       jira_user_pwd = cfg.split('=')[1]
     if re.match('jira.weburl=[a-zA-Z0-9]+', cfg):
       jira_web = cfg.split('=')[1]
-    if re.match('jira.branches=[a-zA-Z]+', cfg):
-      jira_branches = cfg
     if re.match('gitflow.prefix.feature=[a-zA-Z0-9]+', cfg):
       git_flow_feature_prefix = cfg.split('=')[1]
     if re.match('gitflow.prefix.release=[a-zA-Z0-9]+', cfg):
@@ -41,9 +38,6 @@ def main():
 
   if jira_user_name is None or jira_user_pwd is None or jira_web is None:
     print 'Require jira info on .gitconfig'
-
-  if jira_branches is None:
-    jira_branches = 'master'
 
   #create JIRA client 
   jira = createJIRAClient(jira_web, jira_user_name, jira_user_pwd)
